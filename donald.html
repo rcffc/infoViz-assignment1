@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Climate Time Series Chart</title>
+    <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+  </head>
+
+  <body>
+    <div id="container" class="svg-container"></div>
+    <script>
+      //------------------------1. PREPARATION-------------------------//
+      //-----------------------------SVG-------------------------------//
+      const width = 1080;
+      const height = 500;
+      const margin = 5;
+      const padding = 5;
+      const adj = 30;
+      // we are appending SVG first
+      const svg = d3
+        .select("div#container")
+        .append("svg")
+        .attr("preserveAspectRatio", "xMinYMin meet")
+        .attr(
+          "viewBox",
+          "-" +
+            adj +
+            " -" +
+            adj +
+            " " +
+            (width + adj * 3) +
+            " " +
+            (height + adj * 3)
+        )
+        .style("padding", padding)
+        .style("margin", margin)
+        .classed("svg-content", true);
+
+      //-----------------------------DATA------------------------------//
+      const timeConv = d3.timeParse("%m/%Y");
+      const dataset = d3.csv("data/climate.data.donald");
+      dataset.then(function(data) {
+        const slices = data.columns.slice(2).map(function(id) {
+          return {
+            id: id,
+            values: data.map(function(d) {
+              return {
+                date: timeConv(d.Mo + "/" + d.Year),
+                measurement: +d[id]
+              };
+            })
+          };
+        });
+
+        console.log("Column headers", data.columns);
+        console.log("Column headers without date", data.columns.slice(1));
+        // returns the sliced dataset
+        console.log("Slices", slices);
+        // returns the first slice
+        console.log("First slice", slices[0]);
+        // returns the array in the first slice
+        console.log("A array", slices[0].values);
+        // returns the date of the first row in the first slice
+        console.log("Date element", slices[0].values[0].date);
+        // returns the array's length
+        console.log("Array length", slices[0].values.length);
+
+        //----------------------------SCALES-----------------------------//
+        const xScale = d3.scaleTime().range([0, width]);
+        const yScale = d3.scaleLinear().rangeRound([height, 0]);
+
+        xScale.domain(
+          d3.extent(data, function(d) {
+            return timeConv(d.Mo + "/" + d.Year);
+          })
+        );
+        yScale.domain([
+          d3.min(slices, function(c) {
+            return d3.min(c.values, function(d) {
+              return d.measurement - 0.2;
+            });
+          }),
+          d3.max(slices, function(c) {
+            return d3.max(c.values, function(d) {
+              return d.measurement + 0.2;
+            });
+          })
+        ]);
+
+        //-----------------------------AXES------------------------------//
+
+        const yaxis = d3.axisLeft().scale(yScale);
+        const xaxis = d3.axisBottom().scale(xScale);
+        //----------------------------LINES------------------------------//
+
+        //-------------------------2. DRAWING----------------------------//
+
+        //-----------------------------AXES------------------------------//
+        svg
+          .append("g")
+          .attr("class", "axis")
+          .attr("transform", "translate(0," + height + ")")
+          .call(xaxis);
+
+        svg
+          .append("g")
+          .attr("class", "axis")
+          .call(yaxis);
+
+        //----------------------------LINES------------------------------//
+        const line = d3
+          .line()
+          .x(function(d) {
+            return xScale(d.date);
+          })
+          .y(function(d) {
+            return yScale(d.measurement);
+          });
+
+        let id = 0;
+        const ids = function() {
+          return "line-" + id++;
+        };
+
+        const lines = svg
+          .selectAll("lines")
+          .data(slices)
+          .enter()
+          .append("g");
+
+        lines
+          .append("path")
+          .attr("class", ids)
+          .attr("d", function(d) {
+            return line(d.values);
+          });
+
+        lines
+          .append("text")
+          .attr("class", "serie_label")
+          .datum(function(d) {
+            return {
+              id: d.id,
+              value: d.values[d.values.length - 1]
+            };
+          })
+          .attr("transform", function(d) {
+            return (
+              "translate(" +
+              (xScale(d.value.date) + 10) +
+              "," +
+              (yScale(d.value.measurement) + 5) +
+              ")"
+            );
+          })
+          .attr("x", 5)
+          .text(function(d) {
+            return d.id;
+          });
+      });
+    </script>
+  </body>
+</html>
