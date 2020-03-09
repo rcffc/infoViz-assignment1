@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Climate Time Series Chart</title>
+    <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+    <style>
+      text {
+        font-family: sans-serif;
+        font-size: 1.5em;
+      }
+      .month {
+        margin-right: 8px;
+      }
+      .month-name {
+        font-size: 85%;
+        fill: #777;
+        font-family: Arial, Helvetica;
+      }
+      .day.hover {
+        stroke: #6d6e70;
+        stroke-width: 2;
+      }
+      .day.focus {
+        stroke: #ffff33;
+        stroke-width: 2;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Create a div where the graph will take place -->
+    <div id="my_dataviz"></div>
+
+    <script>
+      function convertMonth(month) {
+        switch (month) {
+          case 1:
+            return "Jan";
+            break;
+          case 2:
+            return "Feb";
+            break;
+          case 3:
+            return "Mar";
+          case 4:
+            return "Apr";
+          case 5:
+            return "May";
+          case 6:
+            return "Jun";
+          case 7:
+            return "Jul";
+          case 8:
+            return "Aug";
+          case 9:
+            return "Sep";
+          case 10:
+            return "OCt";
+          case 11:
+            return "Nov";
+          case 10:
+            return "Dec";
+        }
+      }
+
+      // Labels of row and columns
+
+      const dataset = d3.csv("data/climate.data.bernie");
+      dataset.then(function(data) {
+        const slices = data.columns.slice(2).map(function(id) {
+          return {
+            id: id,
+            values: data.map(function(d) {
+              return {
+                // year: d3.timeParse("%Y")(d.Year),
+                // month: d3.timeParse("%m")(d.Mo),
+                year: d.Year,
+                month: d.Mo,
+                measurement: +d[id]
+              };
+            })
+          };
+        });
+        const globe = slices[0].values;
+        const land = slices[1].values;
+        const ocean = slices[2].values;
+
+        const year = Array.from({ length: 2020 - 1979 }, (x, i) => i + 1979);
+        const month = Array.from({ length: 13 - 1 }, (x, i) => i + 1).reverse();
+        // .map(m => {
+        //   return d3.timeParse("%m")(m);
+        // });
+
+        // set the dimensions and margins of the graph
+        var margin = { top: 50, right: 50, bottom: 50, left: 50 },
+          width = 1800 - margin.left - margin.right,
+          height = 600 - margin.top - margin.bottom;
+
+        // Build scales and axis:
+        var x = d3
+          .scaleBand()
+          .range([0, width])
+          .domain(year)
+          .padding(0.01);
+        var y = d3
+          .scaleBand()
+          .range([height, 0])
+          .domain(month)
+          .padding(0.01);
+
+        // Build color scale
+        var myColor = d3
+          .scaleLinear()
+          .range(["white", "#ff1e00"])
+          .domain([
+            d3.min(slices, function(c) {
+              return d3.min(c.values, function(d) {
+                return d.measurement;
+              });
+            }),
+            d3.max(slices, function(c) {
+              return d3.max(c.values, function(d) {
+                return d.measurement;
+              });
+            })
+          ]);
+
+        draw(globe, "Globe");
+        draw(land, "Land");
+        draw(ocean, "Sea");
+
+        function draw(data, title) {
+          // append the svg object to the body of the page
+          var svg = d3
+            .select("#my_dataviz")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr(
+              "transform",
+              "translate(" + margin.left + "," + margin.top + ")"
+            );
+
+          svg
+            .append("text")
+            .attr("x", -20)
+            .attr("y", -20)
+            .text(title);
+
+          svg
+            .append("g")
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x));
+
+          svg.append("g").call(d3.axisLeft(y));
+
+          svg
+            .selectAll()
+            .data(data, function(d) {
+              return d.year + ":" + d.month;
+            })
+            .enter()
+            .append("rect")
+            .attr("x", function(d) {
+              return x(d.year);
+            })
+            .attr("y", function(d) {
+              return y(d.month);
+            })
+            .attr("width", x.bandwidth())
+            .attr("height", y.bandwidth())
+            .style("fill", function(d) {
+              if (Math.abs(d.measurement) > 0.2) {
+                return myColor(1.5 * d.measurement);
+              } else if (Math.abs(d.measurement) > 0.4) {
+                return myColor(1.8 * d.measurement);
+              } else if (Math.abs(d.measurement) > 0.6) {
+                return myColor(2.0 * d.measurement);
+              } else {
+                return myColor(d.measurement);
+              }
+            });
+        }
+      });
+    </script>
+  </body>
+</html>
