@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Wine</title>
+    <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+    <script src="d3.scatterplotMatrix.js"></script>
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+
+    <!-- <style>
+      g > text {
+        font-size: 1.5em;
+      }
+    </style> -->
+  </head>
+
+  <body>
+    <script>
+      columns = ["Ash", "Hue", "Flavanoids", "Alcohol"];
+
+      const dataset = d3.csv("data/wine.data");
+      dataset.then(function(data) {
+        let chart = d3
+          .scatterplotMatrix()
+          .traits(columns)
+          .width(800)
+          .height(800)
+          .colorValueMapper(d => d.Species);
+
+        let svg = d3
+          .select("body")
+          .append("svg")
+          .datum(data)
+          .call(chart);
+      });
+    </script>
+  </body>
+</html>
