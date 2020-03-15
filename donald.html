@@ -3,8 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <title>Climate Time Series Chart</title>
-    <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+    <!-- <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script> -->
+    <script src="https://d3js.org/d3.v5.min.js"></script>
     <link rel="stylesheet" type="text/css" href="styles.css" />
+    <style>
+      #Globe {
+        stroke: #ff8c00;
+      }
+
+      #Land {
+        stroke: #2b2929;
+      }
+
+      #Ocean {
+        stroke: #1e3f5a;
+      }
+
+      .globe {
+        stroke: #ff8c00;
+
+        font-family: Georgia;
+        font-size: 60%;
+      }
+    </style>
   </head>
 
   <body>
@@ -12,12 +33,12 @@
     <script>
       //------------------------1. PREPARATION-------------------------//
       //-----------------------------SVG-------------------------------//
-      const width = 1080;
+      const width = 1000;
       const height = 500;
       const margin = 5;
       const padding = 5;
       const adj = 30;
-      // we are appending SVG first
+
       const svg = d3
         .select("div#container")
         .append("svg")
@@ -53,40 +74,27 @@
           };
         });
 
-        console.log("Column headers", data.columns);
-        console.log("Column headers without date", data.columns.slice(1));
-        // returns the sliced dataset
-        console.log("Slices", slices);
-        // returns the first slice
-        console.log("First slice", slices[0]);
-        // returns the array in the first slice
-        console.log("A array", slices[0].values);
-        // returns the date of the first row in the first slice
-        console.log("Date element", slices[0].values[0].date);
-        // returns the array's length
-        console.log("Array length", slices[0].values.length);
-
         //----------------------------SCALES-----------------------------//
-        const xScale = d3.scaleTime().range([0, width]);
-        const yScale = d3.scaleLinear().rangeRound([height, 0]);
-
-        xScale.domain(
-          d3.extent(data, function(d) {
-            return timeConv(d.Mo + "/" + d.Year);
-          })
-        );
-        yScale.domain([
+        const xLabels = d3.extent(data, function(d) {
+          return timeConv(d.Mo + "/" + d.Year);
+        });
+        const yLabels = [
           d3.min(slices, function(c) {
             return d3.min(c.values, function(d) {
-              return d.measurement - 1.5;
+              return d.measurement - 0.5;
             });
           }),
           d3.max(slices, function(c) {
             return d3.max(c.values, function(d) {
-              return d.measurement + 1.5;
+              return d.measurement + 0.5;
             });
           })
-        ]);
+        ];
+        const xScale = d3.scaleTime().range([0, width]);
+        const yScale = d3.scaleLinear().rangeRound([height, 0]);
+
+        xScale.domain(xLabels);
+        yScale.domain(yLabels);
 
         //-----------------------------AXES------------------------------//
 
@@ -95,7 +103,13 @@
         //----------------------------LINES------------------------------//
 
         //-------------------------2. DRAWING----------------------------//
-
+        //-----------------------------TITLE------------------------------//
+        svg
+          .append("text")
+          .attr("x", 240)
+          .attr("y", 30)
+          .attr("class", "title")
+          .text("Monthly Increase in Temperature");
         //-----------------------------AXES------------------------------//
         svg
           .append("g")
@@ -139,6 +153,9 @@
         lines
           .append("text")
           .attr("class", "serie_label")
+          .attr("id", d => {
+            return d.id;
+          })
           .datum(function(d) {
             return {
               id: d.id,
@@ -146,11 +163,23 @@
             };
           })
           .attr("transform", function(d) {
+            let pad;
+            switch (d.id) {
+              case "Globe":
+                pad = -0.2;
+                break;
+              case "Land":
+                pad = 0.9;
+                break;
+              case "Ocean":
+                pad = 2.3;
+                break;
+            }
             return (
               "translate(" +
-              (xScale(d.value.date) + 10) +
+              xScale(d.value.date) +
               "," +
-              (yScale(d.value.measurement) + 5) +
+              (yScale(d.value.measurement) + 10 * pad) +
               ")"
             );
           })
@@ -162,8 +191,8 @@
         //----------------------------TREND------------------------------//
         // get the x and y values for least squares
         var xSeries = d3.range(1, xLabels.length + 1);
-        var ySeries = data.map(function(d) {
-          return parseFloat(d["rate"]);
+        var ySeries = slices[0].values.map(function(d) {
+          return parseFloat(d.measurement);
         });
 
         var leastSquaresCoeff = leastSquares(xSeries, ySeries);
@@ -175,10 +204,13 @@
         var y2 = leastSquaresCoeff[0] * xSeries.length + leastSquaresCoeff[1];
         var trendData = [[x1, y1, x2, y2]];
 
-        var trendline = svg.selectAll(".trendline").data(trendData);
+        var trendline = svg
+          .selectAll(".trendline")
+          .data(trendData)
+          .enter()
+          .append("g");
 
         trendline
-          .enter()
           .append("line")
           .attr("class", "trendline")
           .attr("x1", function(d) {
@@ -193,8 +225,24 @@
           .attr("y2", function(d) {
             return yScale(d[3]);
           })
-          .attr("stroke", "black")
+          .attr("stroke", "#ff8c00")
           .attr("stroke-width", 1);
+
+        trendline
+          .append("text")
+          .attr("class", "label")
+          .attr("class", "globe")
+          .attr("x", 5)
+          .datum(function(d) {
+            return {
+              x: d[2],
+              y: d[3]
+            };
+          })
+          .text("Globe (avg.)")
+          .attr("transform", function(d) {
+            return "translate(" + xScale(d.x) + "," + yScale(d.y) + ")";
+          });
       });
 
       // returns slope, intercept and r-square of the line
