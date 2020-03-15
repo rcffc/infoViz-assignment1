@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Climate Time Series Chart</title>
+    <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+    <script src="https://d3js.org/d3-color.v1.min.js"></script>
+    <script src="https://d3js.org/d3-interpolate.v1.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+    <style>
+      text {
+        font-family: sans-serif;
+        font-size: 1.5em;
+      }
+
+      .month {
+        margin-right: 8px;
+      }
+      .month-name {
+        font-size: 85%;
+        fill: #777;
+        font-family: Arial, Helvetica;
+      }
+      .day.hover {
+        stroke: #6d6e70;
+        stroke-width: 2;
+      }
+      .day.focus {
+        stroke: #ffff33;
+        stroke-width: 2;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Create a div where the graph will take place -->
+    <div id="my_dataviz"></div>
+
+    <script>
+      function convertMonth(month) {
+        switch (month) {
+          case 1:
+            return "Jan";
+          case 2:
+            return "Feb";
+          case 3:
+            return "Mar";
+          case 4:
+            return "Apr";
+          case 5:
+            return "May";
+          case 6:
+            return "Jun";
+          case 7:
+            return "Jul";
+          case 8:
+            return "Aug";
+          case 9:
+            return "Sep";
+          case 10:
+            return "Oct";
+          case 11:
+            return "Nov";
+          case 12:
+            return "Dec";
+        }
+      }
+
+      const dataset = d3.csv("data/climate.data.bernie");
+      dataset.then(function(data) {
+        const slices = data.columns.slice(2).map(function(id) {
+          return {
+            id: id,
+            values: data.map(function(d) {
+              return {
+                year: d.Year,
+                month: d.Mo,
+                measurement: +d[id]
+              };
+            })
+          };
+        });
+        const globe = slices[0].values;
+        const land = slices[1].values;
+        const ocean = slices[2].values;
+
+        const year = Array.from({ length: 2020 - 1979 }, (x, i) => i + 1979);
+        const month = Array.from({ length: 13 - 1 }, (x, i) => i + 1).reverse();
+
+        // set the dimensions and margins of the graph
+        var margin = { top: 100, right: 50, bottom: 50, left: 50 },
+          width = 1400 - margin.left - margin.right,
+          height = 500 - margin.top - margin.bottom,
+          padding = 100;
+
+        // Build scales and axis:
+        var x = d3
+          .scaleBand()
+          .range([0, width])
+          .domain(year)
+          .padding(0.01);
+
+        var y = d3
+          .scaleBand()
+          .range([height, 0])
+          .domain(month)
+          .padding(0.01);
+
+        // Build color scale
+        var myColor = d3
+          .scaleLinear()
+          .range(["white", "#ff1e00"])
+          .domain([
+            d3.min(slices, function(c) {
+              return d3.min(c.values, function(d) {
+                return d.measurement;
+              });
+            }),
+            d3.max(slices, function(c) {
+              return d3.max(c.values, function(d) {
+                return d.measurement;
+              });
+            })
+          ]);
+
+        var i = d3.interpolateLab("white", "#ff1e00");
+        const colors = [0.2, 0.4, 0.6, 0.8, 1.0].map(c => {
+            return i(c);
+          }),
+          buckets = 5,
+          gridSize = Math.floor(width / 24),
+          legendElementWidth = gridSize * 2,
+          legendHeight = -50;
+
+        var colorScale = d3
+          .scaleQuantile()
+          .domain([
+            d3.min(slices, function(c) {
+              return d3.min(c.values, function(d) {
+                return d.measurement;
+              });
+            }),
+            buckets - 1,
+            d3.max(slices, function(c) {
+              return d3.max(c.values, function(d) {
+                return d.measurement;
+              });
+            })
+          ])
+          .range(colors);
+
+        draw(globe, "Globe");
+        draw(land, "Land");
+        draw(ocean, "Sea");
+
+        function draw(data, title) {
+          // append the svg object to the body of the page
+          var svg = d3
+            .select("#my_dataviz")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr(
+              "transform",
+              "translate(" + margin.left + "," + margin.top + ")"
+            );
+
+          var legend = svg
+            .selectAll(".legend")
+            .data(colorScale.quantiles(), function(d) {
+              return d;
+            })
+            .enter()
+            .append("g")
+            .attr("class", "legend");
+
+          legend
+            .append("rect")
+            .attr("x", function(d, i) {
+              return width - legendElementWidth * (buckets - i - 1);
+            })
+            .attr("y", legendHeight)
+            .attr("width", legendElementWidth)
+            .attr("height", gridSize / 2)
+            .style("fill", function(d, i) {
+              return colors[i];
+            });
+
+          legend
+            .append("text")
+            .attr("class", "mono")
+            .text(function(d) {
+              return "≥ " + d.toString().substr(0, 4);
+            })
+            .attr("x", function(d, i) {
+              return width - legendElementWidth * (buckets - i - 1);
+            })
+            .attr("y", legendHeight - 5);
+
+          svg
+            .append("text")
+            .attr("x", 0)
+            .attr("y", -30)
+            .attr("class", "title")
+            .text(title);
+
+          svg
+            .append("text")
+            .attr("x", 120)
+            .attr("y", -30)
+            .attr("class", "subtitle")
+            .text("Monthly Increase in Temperature");
+
+          svg
+            .append("g")
+            .attr("transform", "translate(0," + height + ")")
+            .call(
+              d3.axisBottom(x).tickValues(
+                x.domain().filter(function(d, i) {
+                  return !(i % 5);
+                })
+              )
+            );
+
+          svg.append("g").call(
+            d3
+              .axisLeft(y)
+              .tickValues(
+                y.domain().filter((d, i) => {
+                  return !((d + 2) % 3);
+                })
+              )
+              .tickFormat(d => {
+                return convertMonth(d);
+              })
+          );
+
+          svg
+            .selectAll()
+            .data(data, function(d) {
+              return d.year + ":" + d.month;
+            })
+            .enter()
+            .append("rect")
+            .attr("x", function(d) {
+              return x(d.year);
+            })
+            .attr("y", function(d) {
+              return y(d.month);
+            })
+            .attr("width", x.bandwidth())
+            .attr("height", y.bandwidth())
+            .style("fill", function(d) {
+              return myColor(d.measurement);
+            });
+        }
+      });
+    </script>
+  </body>
+</html>
