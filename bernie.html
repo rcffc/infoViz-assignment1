@@ -4,12 +4,15 @@
     <meta charset="utf-8" />
     <title>Climate Time Series Chart</title>
     <script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+    <script src="https://d3js.org/d3-color.v1.min.js"></script>
+    <script src="https://d3js.org/d3-interpolate.v1.min.js"></script>
     <link rel="stylesheet" type="text/css" href="styles.css" />
     <style>
       text {
         font-family: sans-serif;
         font-size: 1.5em;
       }
+
       .month {
         margin-right: 8px;
       }
@@ -38,10 +41,8 @@
         switch (month) {
           case 1:
             return "Jan";
-            break;
           case 2:
             return "Feb";
-            break;
           case 3:
             return "Mar";
           case 4:
@@ -57,15 +58,13 @@
           case 9:
             return "Sep";
           case 10:
-            return "OCt";
+            return "Oct";
           case 11:
             return "Nov";
-          case 10:
+          case 12:
             return "Dec";
         }
       }
-
-      // Labels of row and columns
 
       const dataset = d3.csv("data/climate.data.bernie");
       dataset.then(function(data) {
@@ -74,8 +73,6 @@
             id: id,
             values: data.map(function(d) {
               return {
-                // year: d3.timeParse("%Y")(d.Year),
-                // month: d3.timeParse("%m")(d.Mo),
                 year: d.Year,
                 month: d.Mo,
                 measurement: +d[id]
@@ -89,14 +86,12 @@
 
         const year = Array.from({ length: 2020 - 1979 }, (x, i) => i + 1979);
         const month = Array.from({ length: 13 - 1 }, (x, i) => i + 1).reverse();
-        // .map(m => {
-        //   return d3.timeParse("%m")(m);
-        // });
 
         // set the dimensions and margins of the graph
-        var margin = { top: 50, right: 50, bottom: 50, left: 50 },
-          width = 1800 - margin.left - margin.right,
-          height = 600 - margin.top - margin.bottom;
+        var margin = { top: 100, right: 50, bottom: 50, left: 50 },
+          width = 1400 - margin.left - margin.right,
+          height = 500 - margin.top - margin.bottom,
+          padding = 100;
 
         // Build scales and axis:
         var x = d3
@@ -104,6 +99,7 @@
           .range([0, width])
           .domain(year)
           .padding(0.01);
+
         var y = d3
           .scaleBand()
           .range([height, 0])
@@ -127,6 +123,32 @@
             })
           ]);
 
+        var i = d3.interpolateLab("white", "#ff1e00");
+        const colors = [0.2, 0.4, 0.6, 0.8, 1.0].map(c => {
+            return i(c);
+          }),
+          buckets = 5,
+          gridSize = Math.floor(width / 24),
+          legendElementWidth = gridSize * 2,
+          legendHeight = -50;
+
+        var colorScale = d3
+          .scaleQuantile()
+          .domain([
+            d3.min(slices, function(c) {
+              return d3.min(c.values, function(d) {
+                return d.measurement;
+              });
+            }),
+            buckets - 1,
+            d3.max(slices, function(c) {
+              return d3.max(c.values, function(d) {
+                return d.measurement;
+              });
+            })
+          ])
+          .range(colors);
+
         draw(globe, "Globe");
         draw(land, "Land");
         draw(ocean, "Sea");
@@ -144,18 +166,75 @@
               "translate(" + margin.left + "," + margin.top + ")"
             );
 
+          var legend = svg
+            .selectAll(".legend")
+            .data(colorScale.quantiles(), function(d) {
+              return d;
+            })
+            .enter()
+            .append("g")
+            .attr("class", "legend");
+
+          legend
+            .append("rect")
+            .attr("x", function(d, i) {
+              return width - legendElementWidth * (buckets - i - 1);
+            })
+            .attr("y", legendHeight)
+            .attr("width", legendElementWidth)
+            .attr("height", gridSize / 2)
+            .style("fill", function(d, i) {
+              return colors[i];
+            });
+
+          legend
+            .append("text")
+            .attr("class", "mono")
+            .text(function(d) {
+              return "≥ " + d.toString().substr(0, 4);
+            })
+            .attr("x", function(d, i) {
+              return width - legendElementWidth * (buckets - i - 1);
+            })
+            .attr("y", legendHeight - 5);
+
           svg
             .append("text")
-            .attr("x", -20)
-            .attr("y", -20)
+            .attr("x", 0)
+            .attr("y", -30)
+            .attr("class", "title")
             .text(title);
+
+          svg
+            .append("text")
+            .attr("x", 120)
+            .attr("y", -30)
+            .attr("class", "subtitle")
+            .text("Monthly Increase in Temperature");
 
           svg
             .append("g")
             .attr("transform", "translate(0," + height + ")")
-            .call(d3.axisBottom(x));
+            .call(
+              d3.axisBottom(x).tickValues(
+                x.domain().filter(function(d, i) {
+                  return !(i % 5);
+                })
+              )
+            );
 
-          svg.append("g").call(d3.axisLeft(y));
+          svg.append("g").call(
+            d3
+              .axisLeft(y)
+              .tickValues(
+                y.domain().filter((d, i) => {
+                  return !((d + 2) % 3);
+                })
+              )
+              .tickFormat(d => {
+                return convertMonth(d);
+              })
+          );
 
           svg
             .selectAll()
@@ -173,15 +252,15 @@
             .attr("width", x.bandwidth())
             .attr("height", y.bandwidth())
             .style("fill", function(d) {
-              if (Math.abs(d.measurement) > 0.2) {
-                return myColor(1.5 * d.measurement);
-              } else if (Math.abs(d.measurement) > 0.4) {
-                return myColor(1.8 * d.measurement);
-              } else if (Math.abs(d.measurement) > 0.6) {
-                return myColor(2.0 * d.measurement);
-              } else {
-                return myColor(d.measurement);
-              }
+              // if (Math.abs(d.measurement) > 0.2) {
+              //   return myColor(1.5 * d.measurement);
+              // } else if (Math.abs(d.measurement) > 0.4) {
+              //   return myColor(1.8 * d.measurement);
+              // } else if (Math.abs(d.measurement) > 0.6) {
+              //   return myColor(2.0 * d.measurement);
+              // } else {
+              return myColor(1.5 * d.measurement);
+              //}
             });
         }
       });
